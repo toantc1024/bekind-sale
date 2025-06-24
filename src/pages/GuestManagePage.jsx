@@ -8,7 +8,8 @@ import { notifications } from '@mantine/notifications';
 import { DateTimePicker, DateInput } from '@mantine/dates';
 import { BarChart, LineChart, PieChart } from '@mantine/charts';
 import dayjs from 'dayjs';
-import { FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, FaArrowUp, FaArrowDown, FaEllipsisV, FaCalendarAlt } from 'react-icons/fa';
+import { FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, FaArrowUp, FaArrowDown, FaEllipsisV, FaCalendarAlt, FaFileExcel } from 'react-icons/fa';
+import * as XLSX from 'xlsx';
 import {
     getGuestsWithDetails, createGuest, updateGuest, deleteGuest,
     getMarketersNameMap, getHousesNameMap, getGuestStatusOptions, subscribeToGuests,
@@ -407,7 +408,14 @@ const GuestManagePage = () => {
         setFormData(initialFormData);
     };
 
-    // Handle create guest - Updated to handle marketer_id based on role
+    // Check for existing guest with same phone number
+    const checkExistingGuest = (phoneNumber) => {
+        return guests.find(guest =>
+            guest.guest_phone_number === phoneNumber.trim()
+        );
+    };
+
+    // Handle create guest - Updated to handle duplicates and KPI counting
     const handleCreateGuest = async () => {
         // Validation
         if (!formData.guest_name || !formData.guest_phone_number || !formData.house_id) {
@@ -419,7 +427,50 @@ const GuestManagePage = () => {
             return;
         }
 
-        // Set marketer_id based on role
+        // Check for existing guest with same phone number
+        const existingGuest = checkExistingGuest(formData.guest_phone_number);
+
+        if (existingGuest) {
+            // If guest exists, update their status to "Đã chốt" and keep original marketer/manager for KPI
+            const updateData = {
+                status: 'Đã chốt',
+                // Keep original marketer_id and house_id for KPI counting
+                marketer_id: existingGuest.marketer_id,
+                house_id: existingGuest.house_id,
+                // Update other fields with new information
+                guest_name: formData.guest_name,
+                view_date: formData.view_date ? dayjs(formData.view_date).toISOString() : existingGuest.view_date,
+                admin_note: formData.admin_note || existingGuest.admin_note,
+                manager_note: formData.manager_note || existingGuest.manager_note
+            };
+
+            const { data, message } = await updateGuest(
+                existingGuest.id,
+                updateData,
+                account?.role,
+                account?.id
+            );
+
+            if (data) {
+                notifications.show({
+                    title: 'Thành công',
+                    message: `Khách hàng đã tồn tại với số điện thoại này. Đã cập nhật trạng thái thành "Đã chốt" và tính KPI cho ${existingGuest.marketer?.full_name || 'nhân viên marketing'} ban đầu.`,
+                    color: 'green'
+                });
+                setCreateModalOpen(false);
+                resetFormData();
+                fetchGuests();
+            } else {
+                notifications.show({
+                    title: 'Lỗi',
+                    message: message,
+                    color: 'red'
+                });
+            }
+            return;
+        }
+
+        // If no existing guest, create new guest as normal
         let guestData = { ...formData };
 
         if (account?.role === 'Marketing') {
@@ -686,6 +737,138 @@ const GuestManagePage = () => {
         setDatePopoverOpened(false);
     };
 
+    // Export to Excel function
+    const exportToExcel = () => {
+        try {
+            // Prepare data for export
+            const exportData = filteredGuests.map((guest, index) => ({
+                'STT': index + 1,
+                'Tên khách hàng': guest.guest_name || '',
+                'Số điện thoại': guest.guest_phone_number || '',
+                'Marketing': guest.marketer ? guest.marketer.full_name : '',
+                'Nhà': guest.house ? guest.house.address : '',
+                'Ngày xem': guest.view_date ? dayjs(guest.view_date).format('DD/MM/YYYY HH:mm') : '',
+                'Trạng thái': guest.status || '',
+                'Ghi chú Admin': guest.admin_note || '',
+                'Ghi chú Quản lý': guest.manager_note || '',
+                'Ngày tạo': dayjs(guest.created_at).format('DD/MM/YYYY HH:mm'),
+                'Ngày cập nhật': guest.updated_at ? dayjs(guest.updated_at).format('DD/MM/YYYY HH:mm') : ''
+            }));
+
+            // Create workbook and worksheet
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+            // Set column widths
+            const columnWidths = [
+                { wch: 5 },   // STT
+                { wch: 20 },  // Tên khách hàng
+                { wch: 15 },  // Số điện thoại
+                { wch: 20 },  // Marketing
+                { wch: 30 },  // Nhà
+                { wch: 18 },  // Ngày xem
+                { wch: 15 },  // Trạng thái
+                { wch: 30 },  // Ghi chú Admin
+                { wch: 30 },  // Ghi chú Quản lý
+                { wch: 18 },  // Ngày tạo
+                { wch: 18 }   // Ngày cập nhật
+            ];
+            worksheet['!cols'] = columnWidths;
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách hàng');
+
+            // Generate filename with current date
+            const fileName = `Danh_sach_khach_hang_${dayjs().format('DD-MM-YYYY_HH-mm')}.xlsx`;
+
+            // Save file
+            XLSX.writeFile(workbook, fileName);
+
+            notifications.show({
+                title: 'Thành công',
+                message: `Đã xuất file ${fileName}`,
+                color: 'green'
+            });
+        } catch (error) {
+            console.error('Export error:', error);
+            notifications.show({
+                title: 'Lỗi',
+                message: 'Không thể xuất file Excel',
+                color: 'red'
+            });
+        }
+    };
+
+    // Export statistics to Excel
+    const exportStatisticsToExcel = () => {
+        try {
+            const workbook = XLSX.utils.book_new();
+
+            // Export marketer statistics if available
+            if ((account?.role === 'Quản trị viên' || account?.role === 'Marketing') && marketerStats.length > 0) {
+                const marketerData = marketerStats.map((stat, index) => ({
+                    'STT': index + 1,
+                    'Nhân viên Marketing': stat.marketer_name || '',
+                    'Mới': stat['Mới'] || 0,
+                    'Đã chốt': stat['Đã chốt'] || 0,
+                    'Chuẩn bị xem': stat['Chuẩn bị xem'] || 0,
+                    'Đang chăm sóc': stat['Đang chăm sóc'] || 0,
+                    'Không xem': stat['Không xem'] || 0,
+                    'Không chốt': stat['Không chốt'] || 0,
+                    'Tổng': stat.total || 0
+                }));
+
+                const marketerWorksheet = XLSX.utils.json_to_sheet(marketerData);
+                marketerWorksheet['!cols'] = [
+                    { wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 10 },
+                    { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 10 }
+                ];
+                XLSX.utils.book_append_sheet(workbook, marketerWorksheet, 'Thống kê Marketing');
+            }
+
+            // Export manager statistics if available
+            if ((account?.role === 'Quản trị viên' || account?.role === 'Quản lý') && managerStats.length > 0) {
+                const managerData = managerStats.map((stat, index) => ({
+                    'STT': index + 1,
+                    'Quản lý': stat.manager_name || '',
+                    'Mới': stat['Mới'] || 0,
+                    'Đã chốt': stat['Đã chốt'] || 0,
+                    'Chuẩn bị xem': stat['Chuẩn bị xem'] || 0,
+                    'Đang chăm sóc': stat['Đang chăm sóc'] || 0,
+                    'Không xem': stat['Không xem'] || 0,
+                    'Không chốt': stat['Không chốt'] || 0,
+                    'Tổng': stat.total || 0
+                }));
+
+                const managerWorksheet = XLSX.utils.json_to_sheet(managerData);
+                managerWorksheet['!cols'] = [
+                    { wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 10 },
+                    { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 10 }
+                ];
+                XLSX.utils.book_append_sheet(workbook, managerWorksheet, 'Thống kê Quản lý');
+            }
+
+            // Generate filename with current date and date range
+            const fileName = `Thong_ke_khach_hang_${dayjs(startDate).format('DD-MM-YYYY')}_den_${dayjs(endDate).format('DD-MM-YYYY')}.xlsx`;
+
+            // Save file
+            XLSX.writeFile(workbook, fileName);
+
+            notifications.show({
+                title: 'Thành công',
+                message: `Đã xuất file thống kê ${fileName}`,
+                color: 'green'
+            });
+        } catch (error) {
+            console.error('Export statistics error:', error);
+            notifications.show({
+                title: 'Lỗi',
+                message: 'Không thể xuất file thống kê Excel',
+                color: 'red'
+            });
+        }
+    };
+
     return (
         <Container fluid>
             {/* Header */}
@@ -694,6 +877,15 @@ const GuestManagePage = () => {
                 <Group>
                     {activeTab === 'list' && (
                         <>
+                            <Button
+                                leftIcon={<FaFileExcel />}
+                                variant="outline"
+                                color="green"
+                                onClick={exportToExcel}
+                                disabled={filteredGuests.length === 0}
+                            >
+                                Xuất Excel
+                            </Button>
                             <Button
                                 leftIcon={<FaPlus />}
                                 onClick={() => {
@@ -704,6 +896,17 @@ const GuestManagePage = () => {
                                 Thêm khách hàng
                             </Button>
                         </>
+                    )}
+                    {activeTab === 'statistics' && (
+                        <Button
+                            leftIcon={<FaFileExcel />}
+                            variant="outline"
+                            color="green"
+                            onClick={exportStatisticsToExcel}
+                            disabled={marketerStats.length === 0 && managerStats.length === 0}
+                        >
+                            Xuất thống kê Excel
+                        </Button>
                     )}
                 </Group>
             </Group>
@@ -743,7 +946,6 @@ const GuestManagePage = () => {
                                     placeholder="Chọn ngày bắt đầu"
                                     value={startDate}
                                     onChange={(date) => {
-                                        alert(JSON.stringify(date))
                                         if (date) setStartDate(date);
                                     }}
                                     valueFormat="DD/MM/YYYY"
@@ -1010,10 +1212,10 @@ const GuestManagePage = () => {
                                         <Text size="sm" color="dimmed">
                                             <b>Ngày tạo:</b> {formatDate(guest.created_at)}
                                         </Text>
-                                        
+
                                         {/* Admin Note */}
                                         <Divider my="xs" label="Ghi chú" labelPosition="center" />
-                                        
+
                                         <Tooltip label={guest.admin_note} disabled={!guest.admin_note} multiline width={280}>
                                             <Text size="sm" mb="xs">
                                                 <b>Ghi chú Admin:</b> <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1021,7 +1223,7 @@ const GuestManagePage = () => {
                                                 </span>
                                             </Text>
                                         </Tooltip>
-                                        
+
                                         <Tooltip label={guest.manager_note} disabled={!guest.manager_note} multiline width={280}>
                                             <Text size="sm" mb="xs">
                                                 <b>Ghi chú Quản lý:</b> <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
