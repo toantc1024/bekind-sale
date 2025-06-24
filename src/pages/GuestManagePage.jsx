@@ -126,14 +126,24 @@ const GuestManagePage = () => {
             const formattedStartDate = startDate ? dayjs(startDate).format('YYYY-MM-DD') : null;
             const formattedEndDate = endDate ? dayjs(endDate).format('YYYY-MM-DD') : null;
 
-            // Fetch marketer statistics
-            const marketerResponse = await getGuestAnalyticsByMarketer(formattedStartDate, formattedEndDate);
+            // Fetch marketer statistics with role-based filtering
+            const marketerResponse = await getGuestAnalyticsByMarketer(
+                formattedStartDate,
+                formattedEndDate,
+                account?.role,
+                account?.id
+            );
             if (marketerResponse.data) {
                 setMarketerStats(marketerResponse.data);
             }
 
-            // Fetch manager statistics
-            const managerResponse = await getGuestAnalyticsByManager(formattedStartDate, formattedEndDate);
+            // Fetch manager statistics with role-based filtering
+            const managerResponse = await getGuestAnalyticsByManager(
+                formattedStartDate,
+                formattedEndDate,
+                account?.role,
+                account?.id
+            );
             if (managerResponse.data) {
                 setManagerStats(managerResponse.data);
             }
@@ -375,9 +385,10 @@ const GuestManagePage = () => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    // Reset form data
+    // Reset form data - Updated to handle roles correctly
     const resetFormData = () => {
-        setFormData({
+        const initialFormData = {
+            // Default value depends on role
             marketer_id: account?.role === 'Marketing' ? account.id : '',
             house_id: '',
             guest_name: '',
@@ -386,10 +397,17 @@ const GuestManagePage = () => {
             status: 'Mới',
             admin_note: '',
             manager_note: ''
-        });
+        };
+
+        // Set marketer_id to null for managers
+        if (account?.role === 'Quản lý') {
+            initialFormData.marketer_id = null;
+        }
+
+        setFormData(initialFormData);
     };
 
-    // Handle create guest
+    // Handle create guest - Updated to handle marketer_id based on role
     const handleCreateGuest = async () => {
         // Validation
         if (!formData.guest_name || !formData.guest_phone_number || !formData.house_id) {
@@ -401,13 +419,19 @@ const GuestManagePage = () => {
             return;
         }
 
-        const marketer_id = formData.marketer_id || account.id;
+        // Set marketer_id based on role
+        let guestData = { ...formData };
 
-        const guestData = {
-            ...formData,
-            marketer_id,
-            view_date: formData.view_date ? dayjs(formData.view_date).toISOString() : null
-        };
+        if (account?.role === 'Marketing') {
+            // Marketing users always use their own ID
+            guestData.marketer_id = account.id;
+        } else if (account?.role === 'Quản lý') {
+            // Managers set marketer_id to null
+            guestData.marketer_id = null;
+        }
+        // Admin can choose any marketer
+
+        guestData.view_date = formData.view_date ? dayjs(formData.view_date).toISOString() : null;
 
         const { data, message } = await createGuest(guestData);
 
@@ -853,6 +877,18 @@ const GuestManagePage = () => {
                                                 {getSortIndicator('status')}
                                             </Group>
                                         </th>
+                                        <th onClick={() => handleSort('admin_note')} style={{ cursor: 'pointer' }} className="px-3 py-3 hidden xl:table-cell">
+                                            <Group position="apart">
+                                                <span>Ghi chú Admin</span>
+                                                {getSortIndicator('admin_note')}
+                                            </Group>
+                                        </th>
+                                        <th onClick={() => handleSort('manager_note')} style={{ cursor: 'pointer' }} className="px-3 py-3 hidden xl:table-cell">
+                                            <Group position="apart">
+                                                <span>Ghi chú Quản lý</span>
+                                                {getSortIndicator('manager_note')}
+                                            </Group>
+                                        </th>
                                         <th onClick={() => handleSort('created_at')} style={{ cursor: 'pointer' }} className="px-3 py-3 hidden lg:table-cell">
                                             <Group position="apart">
                                                 <span>Ngày tạo</span>
@@ -864,11 +900,11 @@ const GuestManagePage = () => {
                                 </thead>
                                 <tbody>                            {loading ? (
                                     <tr>
-                                        <td colSpan={8}><Text align="center" className="py-4">Đang tải...</Text></td>
+                                        <td colSpan={10}><Text align="center" className="py-4">Đang tải...</Text></td>
                                     </tr>
                                 ) : filteredGuests.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8}><Text align="center" className="py-4">Không có khách hàng nào</Text></td>
+                                        <td colSpan={10}><Text align="center" className="py-4">Không có khách hàng nào</Text></td>
                                     </tr>
                                 ) : (filteredGuests.map(guest => (
                                     <tr key={guest.id} className="hover:bg-gray-50">
@@ -881,6 +917,20 @@ const GuestManagePage = () => {
                                             <Badge color={getStatusColor(guest.status)}>
                                                 {guest.status}
                                             </Badge>
+                                        </td>
+                                        <td className="px-3 py-4 hidden xl:table-cell">
+                                            <Tooltip label={guest.admin_note} disabled={!guest.admin_note} multiline width={200} withArrow>
+                                                <Text size="sm" lineClamp={2}>
+                                                    {guest.admin_note || '–'}
+                                                </Text>
+                                            </Tooltip>
+                                        </td>
+                                        <td className="px-3 py-4 hidden xl:table-cell">
+                                            <Tooltip label={guest.manager_note} disabled={!guest.manager_note} multiline width={200} withArrow>
+                                                <Text size="sm" lineClamp={2}>
+                                                    {guest.manager_note || '–'}
+                                                </Text>
+                                            </Tooltip>
                                         </td>
                                         <td className="px-3 py-4 hidden lg:table-cell">{formatDate(guest.created_at)}</td>
                                         <td className="px-3 py-4">
@@ -917,27 +967,6 @@ const GuestManagePage = () => {
                                         <Group position="apart" mb="xs">
                                             <Text weight={500}>{guest.guest_name}</Text>
                                             {/* Show menu on larger screens, direct buttons on smaller screens */}
-                                            <Group className="hidden sm:flex">
-                                                <Menu>
-                                                    <Menu.Target>
-                                                        <ActionIcon>
-                                                            <FaEllipsisV />
-                                                        </ActionIcon>
-                                                    </Menu.Target>
-                                                    <Menu.Dropdown>
-                                                        <Menu.Item icon={<FaEdit />} onClick={() => openEditModal(guest)}>
-                                                            Sửa
-                                                        </Menu.Item>
-                                                        <Menu.Item
-                                                            color="red"
-                                                            icon={<FaTrash />}
-                                                            onClick={() => openDeleteModal(guest)}
-                                                        >
-                                                            Xóa
-                                                        </Menu.Item>
-                                                    </Menu.Dropdown>
-                                                </Menu>
-                                            </Group>
                                             <Group spacing="xs" className="sm:hidden">
                                                 <Button
                                                     leftIcon={<FaEdit />}
@@ -981,6 +1010,25 @@ const GuestManagePage = () => {
                                         <Text size="sm" color="dimmed">
                                             <b>Ngày tạo:</b> {formatDate(guest.created_at)}
                                         </Text>
+                                        
+                                        {/* Admin Note */}
+                                        <Divider my="xs" label="Ghi chú" labelPosition="center" />
+                                        
+                                        <Tooltip label={guest.admin_note} disabled={!guest.admin_note} multiline width={280}>
+                                            <Text size="sm" mb="xs">
+                                                <b>Ghi chú Admin:</b> <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {guest.admin_note || '–'}
+                                                </span>
+                                            </Text>
+                                        </Tooltip>
+                                        
+                                        <Tooltip label={guest.manager_note} disabled={!guest.manager_note} multiline width={280}>
+                                            <Text size="sm" mb="xs">
+                                                <b>Ghi chú Quản lý:</b> <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {guest.manager_note || '–'}
+                                                </span>
+                                            </Text>
+                                        </Tooltip>
                                     </Card>
                                     </Grid.Col>
                                 ))
@@ -997,209 +1045,224 @@ const GuestManagePage = () => {
                         <Text align="center" my="xl">Đang tải dữ liệu thống kê...</Text>
                     ) : (
                         <>
-                            <Title order={3} mb="md">Báo cáo theo Marketing</Title>
-                            <Box mb="xl" className="overflow-x-auto w-full">
-                                <Table striped highlightOnHover className="min-w-full">
-                                    <thead className="bg-gray-50">
-                                        <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            <th className="px-3 py-3">Nhân viên Marketing</th>
-                                            <th className="px-3 py-3">Mới</th>
-                                            <th className="px-3 py-3">Đã chốt</th>
-                                            <th className="px-3 py-3">Chuẩn bị xem</th>
-                                            <th className="px-3 py-3">Đang chăm sóc</th>
-                                            <th className="px-3 py-3">Không xem</th>
-                                            <th className="px-3 py-3">Không chốt</th>
-                                            <th className="px-3 py-3">Tổng</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {marketerStats.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={8}><Text align="center" className="py-4">Không có dữ liệu</Text></td>
-                                            </tr>
-                                        ) : (
-                                            marketerStats.map((stat, index) => (
-                                                <tr key={index}>
-                                                    <td className="px-3 py-2 font-medium">{stat.marketer_name}</td>
-                                                    <td className="px-3 py-2">{stat['Mới'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Đã chốt'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Chuẩn bị xem'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Đang chăm sóc'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Không xem'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Không chốt'] || 0}</td>
-                                                    <td className="px-3 py-2 font-bold">{stat.total || 0}</td>
+                            {/* Show Marketer Statistics - Only visible to Admin or Marketers for their own data */}
+                            {(account?.role === 'Quản trị viên' || account?.role === 'Marketing') && (
+                                <>
+                                    <Title order={3} mb="md">Báo cáo theo Marketing</Title>
+                                    <Box mb="xl" className="overflow-x-auto w-full">
+                                        <Table striped highlightOnHover className="min-w-full">
+                                            <thead className="bg-gray-50">
+                                                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    <th className="px-3 py-3">Nhân viên Marketing</th>
+                                                    <th className="px-3 py-3">Mới</th>
+                                                    <th className="px-3 py-3">Đã chốt</th>
+                                                    <th className="px-3 py-3">Chuẩn bị xem</th>
+                                                    <th className="px-3 py-3">Đang chăm sóc</th>
+                                                    <th className="px-3 py-3">Không xem</th>
+                                                    <th className="px-3 py-3">Không chốt</th>
+                                                    <th className="px-3 py-3">Tổng</th>
                                                 </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </Table>
-                            </Box>
+                                            </thead>
+                                            <tbody>
+                                                {marketerStats.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={8}><Text align="center" className="py-4">Không có dữ liệu</Text></td>
+                                                    </tr>
+                                                ) : (
+                                                    marketerStats.map((stat, index) => (
+                                                        <tr key={index}>
+                                                            <td className="px-3 py-2 font-medium">{stat.marketer_name}</td>
+                                                            <td className="px-3 py-2">{stat['Mới'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Đã chốt'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Chuẩn bị xem'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Đang chăm sóc'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Không xem'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Không chốt'] || 0}</td>
+                                                            <td className="px-3 py-2 font-bold">{stat.total || 0}</td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </Table>
+                                    </Box>
+                                </>
+                            )}
 
-                            <Title order={3} mb="md" mt="xl">Báo cáo theo Quản lý</Title>
-                            <Box mb="xl" className="overflow-x-auto w-full">
-                                <Table striped highlightOnHover className="min-w-full">
-                                    <thead className="bg-gray-50">
-                                        <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            <th className="px-3 py-3">Quản lý</th>
-                                            <th className="px-3 py-3">Mới</th>
-                                            <th className="px-3 py-3">Đã chốt</th>
-                                            <th className="px-3 py-3">Chuẩn bị xem</th>
-                                            <th className="px-3 py-3">Đang chăm sóc</th>
-                                            <th className="px-3 py-3">Không xem</th>
-                                            <th className="px-3 py-3">Không chốt</th>
-                                            <th className="px-3 py-3">Tổng</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {managerStats.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={8}><Text align="center" className="py-4">Không có dữ liệu</Text></td>
-                                            </tr>
-                                        ) : (
-                                            managerStats.map((stat, index) => (
-                                                <tr key={index}>
-                                                    <td className="px-3 py-2 font-medium">{stat.manager_name}</td>
-                                                    <td className="px-3 py-2">{stat['Mới'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Đã chốt'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Chuẩn bị xem'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Đang chăm sóc'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Không xem'] || 0}</td>
-                                                    <td className="px-3 py-2">{stat['Không chốt'] || 0}</td>
-                                                    <td className="px-3 py-2 font-bold">{stat.total || 0}</td>
+                            {/* Show Manager Statistics - Only visible to Admin or Managers for their houses */}
+                            {(account?.role === 'Quản trị viên' || account?.role === 'Quản lý') && (
+                                <>
+                                    <Title order={3} mb="md" mt="xl">Báo cáo theo Quản lý</Title>
+                                    <Box mb="xl" className="overflow-x-auto w-full">
+                                        <Table striped highlightOnHover className="min-w-full">
+                                            <thead className="bg-gray-50">
+                                                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    <th className="px-3 py-3">Quản lý</th>
+                                                    <th className="px-3 py-3">Mới</th>
+                                                    <th className="px-3 py-3">Đã chốt</th>
+                                                    <th className="px-3 py-3">Chuẩn bị xem</th>
+                                                    <th className="px-3 py-3">Đang chăm sóc</th>
+                                                    <th className="px-3 py-3">Không xem</th>
+                                                    <th className="px-3 py-3">Không chốt</th>
+                                                    <th className="px-3 py-3">Tổng</th>
                                                 </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </Table>
-                            </Box>
+                                            </thead>
+                                            <tbody>
+                                                {managerStats.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={8}><Text align="center" className="py-4">Không có dữ liệu</Text></td>
+                                                    </tr>
+                                                ) : (
+                                                    managerStats.map((stat, index) => (
+                                                        <tr key={index}>
+                                                            <td className="px-3 py-2 font-medium">{stat.manager_name}</td>
+                                                            <td className="px-3 py-2">{stat['Mới'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Đã chốt'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Chuẩn bị xem'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Đang chăm sóc'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Không xem'] || 0}</td>
+                                                            <td className="px-3 py-2">{stat['Không chốt'] || 0}</td>
+                                                            <td className="px-3 py-2 font-bold">{stat.total || 0}</td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </Table>
+                                    </Box>
+                                </>
+                            )}
 
+                            {/* Visualizations section with role-based adaptations */}
                             <Title order={3} mb="md" mt="xl">Biểu đồ thống kê</Title>
                             <Grid gutter="md">
-                                {/* Marketing Section */}
-                                <Grid.Col span={12}>
-                                    <Paper p="md" withBorder mb="md">
-                                        <Title order={4} mb="lg">Thống kê Marketing</Title>
-                                        <Grid>
-                                            {/* Pie Chart - Marketing Status Distribution */}
-                                            <Grid.Col md={6} mb="md">
-                                                <Title order={5} mb="sm" align="center">Phân bố trạng thái khách hàng (Marketing)</Title>
-                                                {chartData.marketerStatusDistribution?.length > 0 ? (
-                                                    <PieChart
-                                                        h={300}
-                                                        withLabelsLine
-                                                        labelsPosition="outside"
-                                                        labelsType="percent"
-                                                        tooltipDataSource="segment"
-                                                        withTooltip
-                                                        tooltipProps={{
-                                                            position: 'top',
-                                                            withArrow: true,
-                                                            arrowSize: 6
-                                                        }}
-                                                        withLabels
-                                                        data={chartData.marketerStatusDistribution
-                                                            .filter(item => item.value > 0)
-                                                            .map(item => ({
-                                                                name: item.status,
-                                                                value: item.value,
-                                                                color: getStatusColor(item.status)
-                                                            }))}
-                                                    />
-                                                ) : (
-                                                    <Text align="center" my="xl">Không có dữ liệu</Text>
-                                                )}
-                                            </Grid.Col>
+                                {/* Marketing Section - Only show if user is Admin or Marketing */}
+                                {(account?.role === 'Quản trị viên' || account?.role === 'Marketing') && (
+                                    <Grid.Col span={12}>
+                                        <Paper p="md" withBorder mb="md">
+                                            <Title order={4} mb="lg">Thống kê Marketing</Title>
+                                            <Grid>
+                                                {/* Pie Chart - Marketing Status Distribution */}
+                                                <Grid.Col md={6} mb="md">
+                                                    <Title order={5} mb="sm" align="center">Phân bố trạng thái khách hàng (Marketing)</Title>
+                                                    {chartData.marketerStatusDistribution?.length > 0 ? (
+                                                        <PieChart
+                                                            h={300}
+                                                            withLabelsLine
+                                                            labelsPosition="outside"
+                                                            labelsType="percent"
+                                                            tooltipDataSource="segment"
+                                                            withTooltip
+                                                            tooltipProps={{
+                                                                position: 'top',
+                                                                withArrow: true,
+                                                                arrowSize: 6
+                                                            }}
+                                                            withLabels
+                                                            data={chartData.marketerStatusDistribution
+                                                                .filter(item => item.value > 0)
+                                                                .map(item => ({
+                                                                    name: item.status,
+                                                                    value: item.value,
+                                                                    color: getStatusColor(item.status)
+                                                                }))}
+                                                        />
+                                                    ) : (
+                                                        <Text align="center" my="xl">Không có dữ liệu</Text>
+                                                    )}
+                                                </Grid.Col>
 
-                                            {/* Bar Chart - Marketer Performance */}
-                                            <Grid.Col md={6} mb="md">
-                                                <Title order={5} mb="sm" align="center">Hiệu suất theo Marketing</Title>
-                                                {chartData.marketerPerformance?.length > 0 ? (
-                                                    <BarChart
-                                                        h={300}
-                                                        data={chartData.marketerPerformance}
-                                                        dataKey="marketer"
-                                                        series={[
-                                                            { name: 'Đã chốt', color: 'green.6' },
-                                                            { name: 'Chuẩn bị xem', color: 'blue.6' },
-                                                            { name: 'Đang chăm sóc', color: 'orange.6' },
-                                                            { name: 'Mới', color: 'teal.6' },
-                                                            { name: 'Không chốt', color: 'red.6' }
-                                                        ]}
-                                                        tickLine="y"
-                                                        withTooltip
-                                                        withLegend
-                                                    />
-                                                ) : (
-                                                    <Text align="center" my="xl">Không có dữ liệu</Text>
-                                                )}
-                                            </Grid.Col>
-                                        </Grid>
-                                    </Paper>
-                                </Grid.Col>
+                                                {/* Bar Chart - Marketer Performance */}
+                                                <Grid.Col md={6} mb="md">
+                                                    <Title order={5} mb="sm" align="center">Hiệu suất theo Marketing</Title>
+                                                    {chartData.marketerPerformance?.length > 0 ? (
+                                                        <BarChart
+                                                            h={300}
+                                                            data={chartData.marketerPerformance}
+                                                            dataKey="marketer"
+                                                            series={[
+                                                                { name: 'Đã chốt', color: 'green.6' },
+                                                                { name: 'Chuẩn bị xem', color: 'blue.6' },
+                                                                { name: 'Đang chăm sóc', color: 'orange.6' },
+                                                                { name: 'Mới', color: 'teal.6' },
+                                                                { name: 'Không chốt', color: 'red.6' }
+                                                            ]}
+                                                            tickLine="y"
+                                                            withTooltip
+                                                            withLegend
+                                                        />
+                                                    ) : (
+                                                        <Text align="center" my="xl">Không có dữ liệu</Text>
+                                                    )}
+                                                </Grid.Col>
+                                            </Grid>
+                                        </Paper>
+                                    </Grid.Col>
+                                )}
 
-                                {/* Manager Section */}
-                                <Grid.Col span={12}>
-                                    <Paper p="md" withBorder mb="md">
-                                        <Title order={4} mb="lg">Thống kê Quản lý</Title>
-                                        <Grid>
-                                            {/* Pie Chart - Manager Status Distribution */}
-                                            <Grid.Col md={6} mb="md">
-                                                <Title order={5} mb="sm" align="center">Phân bố trạng thái khách hàng (Quản lý)</Title>
-                                                {chartData.managerStatusDistribution?.length > 0 ? (
-                                                    <PieChart
-                                                        h={300}
-                                                        withLabelsLine
-                                                        labelsPosition="outside"
-                                                        labelsType="percent"
-                                                        tooltipDataSource="segment"
-                                                        withTooltip
-                                                        tooltipProps={{
-                                                            position: 'top',
-                                                            withArrow: true,
-                                                            arrowSize: 6
-                                                        }}
-                                                        withLabels
-                                                        data={chartData.managerStatusDistribution
-                                                            .filter(item => item.value > 0)
-                                                            .map(item => ({
-                                                                name: item.status,
-                                                                value: item.value,
-                                                                color: getStatusColor(item.status)
-                                                            }))}
-                                                    />
-                                                ) : (
-                                                    <Text align="center" my="xl">Không có dữ liệu</Text>
-                                                )}
-                                            </Grid.Col>
+                                {/* Manager Section - Only show if user is Admin or Manager */}
+                                {(account?.role === 'Quản trị viên' || account?.role === 'Quản lý') && (
+                                    <Grid.Col span={12}>
+                                        <Paper p="md" withBorder mb="md">
+                                            <Title order={4} mb="lg">Thống kê Quản lý</Title>
+                                            <Grid>
+                                                {/* Pie Chart - Manager Status Distribution */}
+                                                <Grid.Col md={6} mb="md">
+                                                    <Title order={5} mb="sm" align="center">Phân bố trạng thái khách hàng (Quản lý)</Title>
+                                                    {chartData.managerStatusDistribution?.length > 0 ? (
+                                                        <PieChart
+                                                            h={300}
+                                                            withLabelsLine
+                                                            labelsPosition="outside"
+                                                            labelsType="percent"
+                                                            tooltipDataSource="segment"
+                                                            withTooltip
+                                                            tooltipProps={{
+                                                                position: 'top',
+                                                                withArrow: true,
+                                                                arrowSize: 6
+                                                            }}
+                                                            withLabels
+                                                            data={chartData.managerStatusDistribution
+                                                                .filter(item => item.value > 0)
+                                                                .map(item => ({
+                                                                    name: item.status,
+                                                                    value: item.value,
+                                                                    color: getStatusColor(item.status)
+                                                                }))}
+                                                        />
+                                                    ) : (
+                                                        <Text align="center" my="xl">Không có dữ liệu</Text>
+                                                    )}
+                                                </Grid.Col>
 
-                                            {/* Bar Chart - Manager Performance */}
-                                            <Grid.Col md={6} mb="md">
-                                                <Title order={5} mb="sm" align="center">Hiệu suất theo Quản lý</Title>
-                                                {chartData.managerPerformance?.length > 0 ? (
-                                                    <BarChart
-                                                        h={300}
-                                                        data={chartData.managerPerformance}
-                                                        dataKey="manager"
-                                                        series={[
-                                                            { name: 'Đã chốt', color: 'green.6' },
-                                                            { name: 'Chuẩn bị xem', color: 'blue.6' },
-                                                            { name: 'Đang chăm sóc', color: 'orange.6' },
-                                                            { name: 'Mới', color: 'teal.6' },
-                                                            { name: 'Không chốt', color: 'red.6' }
-                                                        ]}
-                                                        tickLine="y"
-                                                        withTooltip
-                                                        withLegend
-                                                    />
-                                                ) : (
-                                                    <Text align="center" my="xl">Không có dữ liệu</Text>
-                                                )}
-                                            </Grid.Col>
-                                        </Grid>
-                                    </Paper>
-                                </Grid.Col>
+                                                {/* Bar Chart - Manager Performance */}
+                                                <Grid.Col md={6} mb="md">
+                                                    <Title order={5} mb="sm" align="center">Hiệu suất theo Quản lý</Title>
+                                                    {chartData.managerPerformance?.length > 0 ? (
+                                                        <BarChart
+                                                            h={300}
+                                                            data={chartData.managerPerformance}
+                                                            dataKey="manager"
+                                                            series={[
+                                                                { name: 'Đã chốt', color: 'green.6' },
+                                                                { name: 'Chuẩn bị xem', color: 'blue.6' },
+                                                                { name: 'Đang chăm sóc', color: 'orange.6' },
+                                                                { name: 'Mới', color: 'teal.6' },
+                                                                { name: 'Không chốt', color: 'red.6' }
+                                                            ]}
+                                                            tickLine="y"
+                                                            withTooltip
+                                                            withLegend
+                                                        />
+                                                    ) : (
+                                                        <Text align="center" my="xl">Không có dữ liệu</Text>
+                                                    )}
+                                                </Grid.Col>
+                                            </Grid>
+                                        </Paper>
+                                    </Grid.Col>
+                                )}
 
-                                {/* Line Chart - Daily Guests */}
+                                {/* Line Chart - Daily Guests - Visible to all roles */}
                                 <Grid.Col span={12}>
                                     <Paper p="md" withBorder>
                                         <Title order={4} mb="sm" align="center">Số lượng khách hàng theo ngày</Title>
@@ -1230,7 +1293,7 @@ const GuestManagePage = () => {
                 </Box>
             )}
 
-            {/* Create Guest Modal */}
+            {/* Create Guest Modal - Updated for role-based fields */}
             <Modal
                 opened={createModalOpen}
                 onClose={() => setCreateModalOpen(false)}
@@ -1238,16 +1301,27 @@ const GuestManagePage = () => {
                 size="lg"
             >
                 <Stack spacing="md">
-                    {account?.role !== 'Marketing' && (<Select
-                        label="Marketing"
-                        placeholder="Chọn Marketing"
-                        data={Object.entries(marketers).map(([id, name]) => ({ value: id, label: name }))}
-                        value={String(formData.marketer_id)}
-                        onChange={(value) => handleInputChange('marketer_id', value)}
-                        required
-                    />
+                    {/* Only show marketer selection for Admin role */}
+                    {account?.role === 'Quản trị viên' && (
+                        <Select
+                            label="Marketing"
+                            placeholder="Chọn Marketing"
+                            data={Object.entries(marketers).map(([id, name]) => ({ value: id, label: name }))}
+                            value={String(formData.marketer_id)}
+                            onChange={(value) => handleInputChange('marketer_id', value)}
+                        />
                     )}
 
+                    {/* For Marketing users, show their name but disable selection */}
+                    {account?.role === 'Marketing' && (
+                        <TextInput
+                            label="Marketing"
+                            value={account?.full_name || ''}
+                            disabled
+                        />
+                    )}
+
+                    {/* For Houses: managers can only select their houses, admin can select any */}
                     <Select
                         label="Nhà"
                         placeholder="Chọn nhà"
@@ -1296,14 +1370,24 @@ const GuestManagePage = () => {
                         onChange={(value) => handleInputChange('status', value)}
                     />
 
-                    <TextInput
-                        label="Ghi chú"
-                        placeholder="Nhập ghi chú"
-                        value={formData.admin_note || ''}
-                        onChange={(e) => handleInputChange('admin_note', e.target.value)}
-                    />
+                    {/* Admin note - view only for Marketing */}
+                    {account?.role === 'Marketing' ? (
+                        <TextInput
+                            label="Ghi chú Admin"
+                            value={formData.admin_note || ''}
+                            disabled
+                        />
+                    ) : (
+                        <TextInput
+                            label="Ghi chú Admin"
+                            placeholder="Nhập ghi chú admin"
+                            value={formData.admin_note || ''}
+                            onChange={(e) => handleInputChange('admin_note', e.target.value)}
+                        />
+                    )}
 
-                    {account?.role === 'Quản lý' && (
+                    {/* Manager note - Only visible to Manager and Admin */}
+                    {(account?.role === 'Quản lý' || account?.role === 'Quản trị viên') && (
                         <TextInput
                             label="Ghi chú quản lý"
                             placeholder="Nhập ghi chú quản lý"
@@ -1319,7 +1403,7 @@ const GuestManagePage = () => {
                 </Stack>
             </Modal>
 
-            {/* Edit Guest Modal */}
+            {/* Edit Guest Modal - Updated for role-based fields */}
             <Modal
                 opened={editModalOpen}
                 onClose={() => setEditModalOpen(false)}
@@ -1327,15 +1411,27 @@ const GuestManagePage = () => {
                 size="lg"
             >
                 <Stack spacing="md">
-                    {account?.role === 'Quản trị viên' && (<Select
-                        label="Marketing"
-                        placeholder="Chọn Marketing"
-                        data={Object.entries(marketers).map(([id, name]) => ({ value: id, label: name }))}
-                        value={String(formData.marketer_id)}
-                        onChange={(value) => handleInputChange('marketer_id', value)}
-                    />
+                    {/* Only Admin can change marketer */}
+                    {account?.role === 'Quản trị viên' && (
+                        <Select
+                            label="Marketing"
+                            placeholder="Chọn Marketing"
+                            data={Object.entries(marketers).map(([id, name]) => ({ value: id, label: name }))}
+                            value={String(formData.marketer_id)}
+                            onChange={(value) => handleInputChange('marketer_id', value)}
+                        />
                     )}
 
+                    {/* For Marketing users, show their name but disable selection */}
+                    {account?.role === 'Marketing' && (
+                        <TextInput
+                            label="Marketing"
+                            value={currentGuest?.marketer?.full_name || account?.full_name || ''}
+                            disabled
+                        />
+                    )}
+
+                    {/* Houses: managers can only select their houses, admin can select any */}
                     <Select
                         label="Nhà"
                         placeholder="Chọn nhà"
@@ -1384,21 +1480,29 @@ const GuestManagePage = () => {
                         onChange={(value) => handleInputChange('status', value)}
                     />
 
-                    <TextInput
-                        label="Ghi chú"
-                        placeholder="Nhập ghi chú"
-                        value={formData.admin_note || ''}
-                        onChange={(e) => handleInputChange('admin_note', e.target.value)}
-                    />
-
-                    {(account?.role === 'Quản lý' || account?.role === 'Quản trị viên') && (
+                    {/* Admin note - view only for Marketing */}
+                    {account?.role === 'Marketing' ? (
                         <TextInput
-                            label="Ghi chú quản lý"
-                            placeholder="Nhập ghi chú quản lý"
-                            value={formData.manager_note || ''}
-                            onChange={(e) => handleInputChange('manager_note', e.target.value)}
+                            label="Ghi chú Admin"
+                            value={formData.admin_note || ''}
+                            disabled
+                        />
+                    ) : (
+                        <TextInput
+                            label="Ghi chú Admin"
+                            placeholder="Nhập ghi chú admin"
+                            value={formData.admin_note || ''}
+                            onChange={(e) => handleInputChange('admin_note', e.target.value)}
                         />
                     )}
+
+                    {/* Manager note - Marketing can view and edit, Manager and Admin can edit */}
+                    <TextInput
+                        label="Ghi chú quản lý"
+                        placeholder="Nhập ghi chú quản lý"
+                        value={formData.manager_note || ''}
+                        onChange={(e) => handleInputChange('manager_note', e.target.value)}
+                    />
 
                     <Group position="right" mt="md">
                         <Button variant="outline" onClick={() => setEditModalOpen(false)}>Hủy</Button>

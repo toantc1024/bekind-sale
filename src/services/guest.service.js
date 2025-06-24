@@ -345,16 +345,21 @@ export const getGuestStatusOptions = () => {
  * Get guest statistics grouped by manager and status within date range
  * @param {string} startDate - Optional start date for filtering
  * @param {string} endDate - Optional end date for filtering
+ * @param {string|null} userRole - The role of the user making the request
+ * @param {string|number|null} userId - The ID of the user making the request
  * @returns {Promise<object>} Object containing analytics data and message
  */
 export const getGuestAnalyticsByManager = async (
   startDate = null,
-  endDate = null
+  endDate = null,
+  userRole = null,
+  userId = null
 ) => {
   try {
     let query = supabaseClient.from("Guest").select(`
         status,
         house:House!Guest_house_id_fkey(
+          id,
           manager:Account!House_manager_id_fkey(id, full_name)
         )
       `);
@@ -364,6 +369,15 @@ export const getGuestAnalyticsByManager = async (
     }
     if (endDate) {
       query = query.lte("created_at", endDate);
+    }
+
+    // Apply role-based filtering
+    if (userRole === "Quản lý") {
+      // For managers, only include houses they manage
+      query = query.eq("house.manager_id", userId);
+    } else if (userRole === "Marketing") {
+      // Marketing can only see data for guests they've added
+      query = query.eq("marketer_id", userId);
     }
 
     const { data, error } = await query;
@@ -413,11 +427,15 @@ export const getGuestAnalyticsByManager = async (
  * Get guest statistics grouped by marketer and status within date range
  * @param {string} startDate - Optional start date for filtering
  * @param {string} endDate - Optional end date for filtering
+ * @param {string|null} userRole - The role of the user making the request
+ * @param {string|number|null} userId - The ID of the user making the request
  * @returns {Promise<object>} Object containing analytics data and message
  */
 export const getGuestAnalyticsByMarketer = async (
   startDate = null,
-  endDate = null
+  endDate = null,
+  userRole = null,
+  userId = null
 ) => {
   try {
     let query = supabaseClient.from("Guest").select(`
@@ -430,6 +448,25 @@ export const getGuestAnalyticsByMarketer = async (
     }
     if (endDate) {
       query = query.lte("created_at", endDate);
+    }
+
+    // Apply role-based filtering
+    if (userRole === "Marketing") {
+      // Marketing can only see their own stats
+      query = query.eq("marketer_id", userId);
+    } else if (userRole === "Quản lý") {
+      // Managers can only see stats for their houses
+      const { data: houses } = await supabaseClient
+        .from("House")
+        .select("id")
+        .eq("manager_id", userId);
+
+      if (houses && houses.length > 0) {
+        const houseIds = houses.map((house) => house.id);
+        query = query.in("house_id", houseIds);
+      } else {
+        return { data: [], message: "Không tìm thấy nhà nào" };
+      }
     }
 
     const { data, error } = await query;

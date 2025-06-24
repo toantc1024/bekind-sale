@@ -1,7 +1,7 @@
 import classes from '../styles/AppLayout.module.css';
 import { useDisclosure } from '@mantine/hooks';
 import BEKIND_LOGO from '../assets/bekind.png'
-import { HiHome, HiKey, HiLogin, HiUser, HiLogout, HiChartBar } from 'react-icons/hi'
+import { HiHome, HiKey, HiLogin, HiUser, HiLogout } from 'react-icons/hi'
 import useAccountStore from '../stores/account.store';
 import { AppShell, Button, Group, Text, Modal, Paper } from '@mantine/core';
 import { Burger } from '@mantine/core';
@@ -36,9 +36,12 @@ export default function AppLayout() {
 
     const data = [
         { link: '/quan-ly-khach', label: 'Quản lý khách hàng', icon: HiUser },
-        { link: '/quan-ly-tai-khoan', label: 'Quản lý tài khoản', icon: HiKey },
-        { link: '/quan-ly-nha', label: 'Quản lý nhà', icon: HiHome },
-        { link: '/dashboard', label: 'Thống kê', icon: HiChartBar },
+        ...(account.role === "Quản trị viên"
+            ? [
+                { link: '/quan-ly-tai-khoan', label: 'Quản lý tài khoản', icon: HiKey },
+                { link: '/quan-ly-nha', label: 'Quản lý nhà', icon: HiHome },
+            ]
+            : []),
     ];
 
     const links = data.map((item) => (
@@ -91,9 +94,9 @@ export default function AppLayout() {
                 {links}
                 <Button
                     mt="auto"
-                    leftSection={<HiLogout />}
-                    variant="light"
-                    color="red"
+                    leftIcon={<HiLogout />}
+                    // color="red" 
+                    // variant="light"
                     onClick={() => setLogoutModalOpened(true)}
                 >
                     Đăng xuất
