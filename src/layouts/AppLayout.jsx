@@ -36,7 +36,7 @@ export default function AppLayout() {
 
     const data = [
         { link: '/quan-ly-khach', label: 'Quản lý khách hàng', icon: HiUser },
-        ...(account.role === "Quản trị viên"
+        ...(account?.role === "Quản trị viên"
             ? [
                 { link: '/quan-ly-tai-khoan', label: 'Quản lý tài khoản', icon: HiKey },
                 { link: '/quan-ly-nha', label: 'Quản lý nhà', icon: HiHome },
