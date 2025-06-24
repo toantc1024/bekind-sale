@@ -1569,30 +1569,30 @@ const GuestManagePage = () => {
                             }}
                         />
                         <Group spacing="xs" mt="xs">
-                            <Button 
-                                variant="light" 
-                                compact 
+                            <Button
+                                variant="light"
+                                compact
                                 onClick={() => handleInputChange('view_date', dayjs().add(1, 'day').set('hour', 9).set('minute', 0).toDate())}
                             >
                                 Ngày mai 9:00
                             </Button>
-                            <Button 
-                                variant="light" 
-                                compact 
+                            <Button
+                                variant="light"
+                                compact
                                 onClick={() => handleInputChange('view_date', dayjs().add(1, 'day').set('hour', 15).set('minute', 0).toDate())}
                             >
                                 Ngày mai 15:00
                             </Button>
-                            <Button 
-                                variant="light" 
-                                compact 
+                            <Button
+                                variant="light"
+                                compact
                                 onClick={() => handleInputChange('view_date', dayjs().add(2, 'day').set('hour', 10).set('minute', 0).toDate())}
                             >
                                 Ngày kia 10:00
                             </Button>
-                            <Button 
-                                variant="light" 
-                                compact 
+                            <Button
+                                variant="light"
+                                compact
                                 onClick={() => handleInputChange('view_date', dayjs().add(3, 'day').set('hour', 14).set('minute', 0).toDate())}
                             >
                                 3 ngày sau 14:00
@@ -1709,30 +1709,30 @@ const GuestManagePage = () => {
                             }}
                         />
                         <Group spacing="xs" mt="xs">
-                            <Button 
-                                variant="light" 
-                                compact 
+                            <Button
+                                variant="light"
+                                compact
                                 onClick={() => handleInputChange('view_date', dayjs().add(1, 'day').set('hour', 9).set('minute', 0).toDate())}
                             >
                                 Ngày mai 9:00
                             </Button>
-                            <Button 
-                                variant="light" 
-                                compact 
+                            <Button
+                                variant="light"
+                                compact
                                 onClick={() => handleInputChange('view_date', dayjs().add(1, 'day').set('hour', 15).set('minute', 0).toDate())}
                             >
                                 Ngày mai 15:00
                             </Button>
-                            <Button 
-                                variant="light" 
-                                compact 
+                            <Button
+                                variant="light"
+                                compact
                                 onClick={() => handleInputChange('view_date', dayjs().add(2, 'day').set('hour', 10).set('minute', 0).toDate())}
                             >
                                 Ngày kia 10:00
                             </Button>
-                            <Button 
-                                variant="light" 
-                                compact 
+                            <Button
+                                variant="light"
+                                compact
                                 onClick={() => handleInputChange('view_date', dayjs().add(3, 'day').set('hour', 14).set('minute', 0).toDate())}
                             >
                                 3 ngày sau 14:00
@@ -1801,13 +1801,13 @@ const GuestManagePage = () => {
             >
                 <Stack>
                     <Select
-                    label="Marketing"
-                    placeholder="Chọn Marketing"
-                    data={Object.entries(marketers).map(([id, name]) => ({ value: id, label: name }))}
-                    value={filters.marketer_id}
-                    onChange={(value) => setFilters(prev => ({ ...prev, marketer_id: value }))}
-                    clearable
-                />
+                        label="Marketing"
+                        placeholder="Chọn Marketing"
+                        data={Object.entries(marketers).map(([id, name]) => ({ value: id, label: name }))}
+                        value={filters.marketer_id}
+                        onChange={(value) => setFilters(prev => ({ ...prev, marketer_id: value }))}
+                        clearable
+                    />
 
                     <Select
                         label="Nhà"
