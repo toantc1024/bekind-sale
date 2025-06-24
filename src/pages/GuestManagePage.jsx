@@ -734,7 +734,6 @@ const GuestManagePage = () => {
 
         setStartDate(newStartDate);
         setEndDate(newEndDate);
-        setDatePopoverOpened(false);
     };
 
     // Export to Excel function
@@ -921,63 +920,38 @@ const GuestManagePage = () => {
 
             {/* Date Range Selection - Show for both tabs */}
             <Group position="apart" mb="md">
-                <Popover
-                    opened={datePopoverOpened}
-                    onChange={setDatePopoverOpened}
-                    position="bottom"
-                    width={300}
-                    withArrow
-                    shadow="md"
-                >
-                    <Popover.Target>
-                        <Button
-                            variant="outline"
-                            leftIcon={<FaCalendarAlt />}
-                            onClick={() => setDatePopoverOpened((o) => !o)}
-                        >
-                            {dayjs(startDate).format('DD/MM/YYYY')} - {dayjs(endDate).format('DD/MM/YYYY')}
-                        </Button>
-                    </Popover.Target>
-                    <Popover.Dropdown>
-                        <Stack>
-                            <Group position="apart">
-                                <DateInput
-                                    label="Từ ngày"
-                                    placeholder="Chọn ngày bắt đầu"
-                                    value={startDate}
-                                    onChange={(date) => {
-                                        if (date) setStartDate(date);
-                                    }}
-                                    valueFormat="DD/MM/YYYY"
-                                    maxDate={endDate}
-                                />
-                                <DateInput
-                                    label="Đến ngày"
-                                    placeholder="Chọn ngày kết thúc"
-                                    value={endDate}
-                                    onChange={(date) => {
-                                        if (date) setEndDate(date);
-                                    }}
-                                    valueFormat="DD/MM/YYYY"
-                                    minDate={startDate}
-                                />
-                            </Group>
-                            <Divider my="xs" label="Chọn nhanh" labelPosition="center" />
-                            <Group grow>
-                                <Button variant="light" compact onClick={() => setDatePreset('today')}>Hôm nay</Button>
-                                <Button variant="light" compact onClick={() => setDatePreset('yesterday')}>Hôm qua</Button>
-                            </Group>
-                            <Group grow>
-                                <Button variant="light" compact onClick={() => setDatePreset('thisWeek')}>Tuần này</Button>
-                                <Button variant="light" compact onClick={() => setDatePreset('lastWeek')}>Tuần trước</Button>
-                            </Group>
-                            <Group grow>
-                                <Button variant="light" compact onClick={() => setDatePreset('thisMonth')}>Tháng này</Button>
-                                <Button variant="light" compact onClick={() => setDatePreset('lastMonth')}>Tháng trước</Button>
-                            </Group>
-                        </Stack>
-                    </Popover.Dropdown>
-                </Popover>
+                <Group spacing="md">
+                    <DateInput
+                        label="Từ ngày"
+                        placeholder="Chọn ngày bắt đầu"
+                        value={startDate}
+                        onChange={(date) => {
+                            if (date) setStartDate(date);
+                        }}
+                        valueFormat="DD/MM/YYYY"
+                        maxDate={endDate}
+                        style={{ width: '150px' }}
+                    />
+                    <DateInput
+                        label="Đến ngày"
+                        placeholder="Chọn ngày kết thúc"
+                        value={endDate}
+                        onChange={(date) => {
+                            if (date) setEndDate(date);
+                        }}
+                        valueFormat="DD/MM/YYYY"
+                        minDate={startDate}
+                        style={{ width: '150px' }}
+                    />
+                    <Group spacing="xs">
+                        <Button variant="light" compact onClick={() => setDatePreset('today')}>Hôm nay</Button>
+                        <Button variant="light" compact onClick={() => setDatePreset('yesterday')}>Hôm qua</Button>
+                        <Button variant="light" compact onClick={() => setDatePreset('thisWeek')}>Tuần này</Button>
+                        <Button variant="light" compact onClick={() => setDatePreset('lastWeek')}>Tuần trước</Button>
+                        <Button variant="light" compact onClick={() => setDatePreset('thisMonth')}>Tháng này</Button>
+                        <Button variant="light" compact onClick={() => setDatePreset('lastMonth')}>Tháng trước</Button>
+                    </Group>
+                </Group>
 
                 {/* Search and Filter Bar - Only show in list view */}
                 {activeTab === 'list' && (
