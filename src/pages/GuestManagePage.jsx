@@ -5,7 +5,7 @@ import {
     ActionIcon, Menu, Tabs, Badge, Tooltip, Divider, Popover
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { DateTimePicker, DateInput } from '@mantine/dates';
+// Remove DateTimePicker and DateInput imports
 import { BarChart, LineChart, PieChart } from '@mantine/charts';
 import dayjs from 'dayjs';
 import { FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, FaArrowUp, FaArrowDown, FaEllipsisV, FaCalendarAlt, FaFileExcel } from 'react-icons/fa';
@@ -699,6 +699,20 @@ const GuestManagePage = () => {
         }
     };
 
+    // Helper function to convert Date to datetime-local string
+    const dateToDatetimeLocal = (date) => {
+        if (!date) return '';
+        const d = new Date(date);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0, 16);
+    };
+
+    // Helper function to convert datetime-local string to Date
+    const datetimeLocalToDate = (datetimeLocal) => {
+        if (!datetimeLocal) return null;
+        return new Date(datetimeLocal);
+    };
+
     // Set date preset: fix date selection function
     const setDatePreset = (preset) => {
         let newStartDate, newEndDate;
@@ -921,28 +935,46 @@ const GuestManagePage = () => {
             {/* Date Range Selection - Show for both tabs */}
             <Group position="apart" mb="md">
                 <Group spacing="md">
-                    <DateInput
-                        label="Từ ngày"
-                        placeholder="Chọn ngày bắt đầu"
-                        value={startDate}
-                        onChange={(date) => {
-                            if (date) setStartDate(date);
-                        }}
-                        valueFormat="DD/MM/YYYY"
-                        maxDate={endDate}
-                        style={{ width: '150px' }}
-                    />
-                    <DateInput
-                        label="Đến ngày"
-                        placeholder="Chọn ngày kết thúc"
-                        value={endDate}
-                        onChange={(date) => {
-                            if (date) setEndDate(date);
-                        }}
-                        valueFormat="DD/MM/YYYY"
-                        minDate={startDate}
-                        style={{ width: '150px' }}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <Text size="sm" weight={500} mb={5}>Từ ngày</Text>
+                        <input
+                            type="date"
+                            value={startDate ? dayjs(startDate).format('YYYY-MM-DD') : ''}
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    setStartDate(new Date(e.target.value));
+                                }
+                            }}
+                            max={endDate ? dayjs(endDate).format('YYYY-MM-DD') : ''}
+                            style={{
+                                padding: '8px 12px',
+                                border: '1px solid #ced4da',
+                                borderRadius: '4px',
+                                fontSize: '14px',
+                                width: '150px'
+                            }}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <Text size="sm" weight={500} mb={5}>Đến ngày</Text>
+                        <input
+                            type="date"
+                            value={endDate ? dayjs(endDate).format('YYYY-MM-DD') : ''}
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    setEndDate(new Date(e.target.value));
+                                }
+                            }}
+                            min={startDate ? dayjs(startDate).format('YYYY-MM-DD') : ''}
+                            style={{
+                                padding: '8px 12px',
+                                border: '1px solid #ced4da',
+                                borderRadius: '4px',
+                                fontSize: '14px',
+                                width: '150px'
+                            }}
+                        />
+                    </div>
                     <Group spacing="xs">
                         <Button variant="light" compact onClick={() => setDatePreset('today')}>Hôm nay</Button>
                         <Button variant="light" compact onClick={() => setDatePreset('yesterday')}>Hôm qua</Button>
@@ -1523,20 +1555,50 @@ const GuestManagePage = () => {
                         required
                     />
 
-                    <DateTimePicker
-                        label="Ngày xem"
-                        placeholder="Chọn ngày và giờ xem nhà"
-                        valueFormat="DD/MM/YYYY HH:mm"
-                        value={formData.view_date}
-                        onChange={(value) => handleInputChange('view_date', value)}
-                        clearable
-                        presets={[
-                            { value: dayjs().add(1, 'day').set('hour', 9).set('minute', 0).toDate(), label: 'Ngày mai 9:00' },
-                            { value: dayjs().add(1, 'day').set('hour', 15).set('minute', 0).toDate(), label: 'Ngày mai 15:00' },
-                            { value: dayjs().add(2, 'day').set('hour', 10).set('minute', 0).toDate(), label: 'Ngày kia 10:00' },
-                            { value: dayjs().add(3, 'day').set('hour', 14).set('minute', 0).toDate(), label: '3 ngày sau 14:00' }
-                        ]}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <Text size="sm" weight={500} mb={5}>Ngày xem</Text>
+                        <input
+                            type="datetime-local"
+                            value={dateToDatetimeLocal(formData.view_date)}
+                            onChange={(e) => handleInputChange('view_date', datetimeLocalToDate(e.target.value))}
+                            style={{
+                                padding: '8px 12px',
+                                border: '1px solid #ced4da',
+                                borderRadius: '4px',
+                                fontSize: '14px'
+                            }}
+                        />
+                        <Group spacing="xs" mt="xs">
+                            <Button 
+                                variant="light" 
+                                compact 
+                                onClick={() => handleInputChange('view_date', dayjs().add(1, 'day').set('hour', 9).set('minute', 0).toDate())}
+                            >
+                                Ngày mai 9:00
+                            </Button>
+                            <Button 
+                                variant="light" 
+                                compact 
+                                onClick={() => handleInputChange('view_date', dayjs().add(1, 'day').set('hour', 15).set('minute', 0).toDate())}
+                            >
+                                Ngày mai 15:00
+                            </Button>
+                            <Button 
+                                variant="light" 
+                                compact 
+                                onClick={() => handleInputChange('view_date', dayjs().add(2, 'day').set('hour', 10).set('minute', 0).toDate())}
+                            >
+                                Ngày kia 10:00
+                            </Button>
+                            <Button 
+                                variant="light" 
+                                compact 
+                                onClick={() => handleInputChange('view_date', dayjs().add(3, 'day').set('hour', 14).set('minute', 0).toDate())}
+                            >
+                                3 ngày sau 14:00
+                            </Button>
+                        </Group>
+                    </div>
 
                     <Select
                         label="Trạng thái"
@@ -1633,20 +1695,50 @@ const GuestManagePage = () => {
                         required
                     />
 
-                    <DateTimePicker
-                        label="Ngày xem"
-                        placeholder="Chọn ngày và giờ xem nhà"
-                        valueFormat="DD/MM/YYYY HH:mm"
-                        value={formData.view_date}
-                        onChange={(value) => handleInputChange('view_date', value)}
-                        clearable
-                        presets={[
-                            { value: dayjs().add(1, 'day').set('hour', 9).set('minute', 0).toDate(), label: 'Ngày mai 9:00' },
-                            { value: dayjs().add(1, 'day').set('hour', 15).set('minute', 0).toDate(), label: 'Ngày mai 15:00' },
-                            { value: dayjs().add(2, 'day').set('hour', 10).set('minute', 0).toDate(), label: 'Ngày kia 10:00' },
-                            { value: dayjs().add(3, 'day').set('hour', 14).set('minute', 0).toDate(), label: '3 ngày sau 14:00' }
-                        ]}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <Text size="sm" weight={500} mb={5}>Ngày xem</Text>
+                        <input
+                            type="datetime-local"
+                            value={dateToDatetimeLocal(formData.view_date)}
+                            onChange={(e) => handleInputChange('view_date', datetimeLocalToDate(e.target.value))}
+                            style={{
+                                padding: '8px 12px',
+                                border: '1px solid #ced4da',
+                                borderRadius: '4px',
+                                fontSize: '14px'
+                            }}
+                        />
+                        <Group spacing="xs" mt="xs">
+                            <Button 
+                                variant="light" 
+                                compact 
+                                onClick={() => handleInputChange('view_date', dayjs().add(1, 'day').set('hour', 9).set('minute', 0).toDate())}
+                            >
+                                Ngày mai 9:00
+                            </Button>
+                            <Button 
+                                variant="light" 
+                                compact 
+                                onClick={() => handleInputChange('view_date', dayjs().add(1, 'day').set('hour', 15).set('minute', 0).toDate())}
+                            >
+                                Ngày mai 15:00
+                            </Button>
+                            <Button 
+                                variant="light" 
+                                compact 
+                                onClick={() => handleInputChange('view_date', dayjs().add(2, 'day').set('hour', 10).set('minute', 0).toDate())}
+                            >
+                                Ngày kia 10:00
+                            </Button>
+                            <Button 
+                                variant="light" 
+                                compact 
+                                onClick={() => handleInputChange('view_date', dayjs().add(3, 'day').set('hour', 14).set('minute', 0).toDate())}
+                            >
+                                3 ngày sau 14:00
+                            </Button>
+                        </Group>
+                    </div>
 
                     <Select
                         label="Trạng thái"
@@ -1707,7 +1799,8 @@ const GuestManagePage = () => {
                 onClose={() => setFilterModalOpen(false)}
                 title="Lọc khách hàng"
             >
-                <Stack>                    <Select
+                <Stack>
+                    <Select
                     label="Marketing"
                     placeholder="Chọn Marketing"
                     data={Object.entries(marketers).map(([id, name]) => ({ value: id, label: name }))}
@@ -1734,23 +1827,37 @@ const GuestManagePage = () => {
                         clearable
                     />
 
-                    <DateTimePicker
-                        label="Ngày xem từ"
-                        placeholder="Chọn ngày bắt đầu"
-                        valueFormat="DD/MM/YYYY HH:mm"
-                        value={filters.view_date_from}
-                        onChange={(value) => setFilters(prev => ({ ...prev, view_date_from: value }))}
-                        clearable
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <Text size="sm" weight={500} mb={5}>Ngày xem từ</Text>
+                        <input
+                            type="datetime-local"
+                            value={dateToDatetimeLocal(filters.view_date_from)}
+                            onChange={(e) => setFilters(prev => ({ ...prev, view_date_from: datetimeLocalToDate(e.target.value) }))
+                            }
+                            style={{
+                                padding: '8px 12px',
+                                border: '1px solid #ced4da',
+                                borderRadius: '4px',
+                                fontSize: '14px'
+                            }}
+                        />
+                    </div>
 
-                    <DateTimePicker
-                        label="Ngày xem đến"
-                        placeholder="Chọn ngày kết thúc"
-                        valueFormat="DD/MM/YYYY HH:mm"
-                        value={filters.view_date_to}
-                        onChange={(value) => setFilters(prev => ({ ...prev, view_date_to: value }))}
-                        clearable
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <Text size="sm" weight={500} mb={5}>Ngày xem đến</Text>
+                        <input
+                            type="datetime-local"
+                            value={dateToDatetimeLocal(filters.view_date_to)}
+                            onChange={(e) => setFilters(prev => ({ ...prev, view_date_to: datetimeLocalToDate(e.target.value) }))
+                            }
+                            style={{
+                                padding: '8px 12px',
+                                border: '1px solid #ced4da',
+                                borderRadius: '4px',
+                                fontSize: '14px'
+                            }}
+                        />
+                    </div>
 
                     <Group position="right" mt="md">
                         <Button variant="outline" onClick={resetFilters}>Xóa lọc</Button>
